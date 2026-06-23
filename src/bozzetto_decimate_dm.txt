@@ -1,0 +1,195 @@
+//==============================================================
+//  Bozzetto — In-ZBrush Batch Decimation (Decimation Master)
+//--------------------------------------------------------------
+//  OPTIONAL, SEPARATE step. Takes an OBJ sequence produced by
+//  bozzetto_exporter (sculpt_0001.obj ...) and decimates every
+//  frame with Decimation Master to hit Bozzetto's triangle
+//  budget, writing the results to an output folder.
+//
+//  You do NOT always need this — exporting at a lower
+//  subdivision level is often enough. The command-line
+//  alternative is scripts/decimate_sequence.py (PyMeshLab).
+//
+//  WHY THIS IS STRUCTURED ODDLY (the "replay" pattern)
+//  ---------------------------------------------------
+//  Pressing a Decimation Master button ENDS ZScript execution —
+//  control does not return to the next line. So we cannot loop
+//  normally. Instead we keep our state in a memblock and set the
+//  special memblock "Replay_ZScript_Path", which makes ZBrush
+//  re-run this script after each decimation. Each re-run does the
+//  next chunk of work (export the previous result, import + start
+//  decimating the next file). This is Marcus Civis's technique
+//  from the Batch_DM plugin; full credit to him.
+//
+//  TWO DECIMATION BACKENDS (auto-selected)
+//  ---------------------------------------
+//   1. PREFERRED: Marcus's "Batch_DM_2022" plugin, if installed
+//      (ZStartup/ZPlugs64). We drive its proven, version-correct
+//      wrapper via the Batch_DM_Settings memblock. Lowest risk.
+//   2. FALLBACK: stock Decimation Master commands. //VERIFY these
+//      paths/control names on your machine.
+//
+//  USAGE
+//   1. Put an EMPTY-ish 3D tool in the scene (e.g. load any
+//      PolyMesh3D / PolySphere) — imports replace its mesh.
+//   2. Edit the CONFIG block below: input/output folders, prefix,
+//      padding, first/last frame numbers, and target K-polys.
+//   3. Make sure ZSCRIPT_FILENAME below matches this file's name.
+//   4. Load this .txt via the ZScript palette and press
+//      "Bozzetto Decimate" (press 'H' if the button is hidden).
+//==============================================================
+
+//--------------------------------------------------------------
+//  CONFIG — edit these to match your sequence
+//--------------------------------------------------------------
+[VarDef, ZSCRIPT_FILENAME, "bozzetto_decimate_dm.txt"]  // must match this file's name!
+[VarDef, cfgInDir,   "C:\bozzetto\raw\"]        // folder with the source OBJs (trailing slash)
+[VarDef, cfgOutDir,  "C:\bozzetto\decimated\"]  // folder for decimated OBJs (must exist)
+[VarDef, cfgPrefix,  "sculpt_"]                 // filename prefix
+[VarDef, cfgPad,     4]                         // zero-pad width
+[VarDef, cfgFirst,   1]                         // first frame number
+[VarDef, cfgLast,    10]                        // last frame number
+[VarDef, cfgKPolys,  50]                        // target size in THOUSANDS of polys (50 = ~50k)
+[VarDef, cfgKeepUV,  0]                          // 0/1
+[VarDef, cfgKeepPP,  0]                          // keep polypaint 0/1
+[VarDef, cfgFreezeB, 0]                          // freeze borders 0/1
+
+//--------------------------------------------------------------
+//  Working globals
+//--------------------------------------------------------------
+[VarDef, run, 0]
+[VarDef, first, 0]
+[VarDef, last, 0]
+[VarDef, count, 0]
+[VarDef, expIdx, 0]
+[VarDef, impIdx, 0]
+[VarDef, padNum, 0]
+[VarDef, padWidth, 4]
+[VarDef, padStr, ""]
+[VarDef, needZ, 0]
+[VarDef, fullPath, ""]
+[VarDef, zPath, ""]
+
+//--------------------------------------------------------------
+//  Zero-pad padNum to padWidth digits -> padStr
+//--------------------------------------------------------------
+[RoutineDef, zeroPad,
+	[VarSet, padStr, [StrMerge, "", padNum]]      //VERIFY: numeric -> string
+	[VarSet, needZ, padWidth - [StrLength, padStr]]
+	[If, needZ > 0,
+		[Loop, needZ, [VarSet, padStr, [StrMerge, "0", padStr]] ]
+	]
+]
+
+//--------------------------------------------------------------
+//  Import frame number impIdx from the input folder
+//--------------------------------------------------------------
+[RoutineDef, dmImport,
+	[VarSet, padNum, impIdx]
+	[VarSet, padWidth, cfgPad]
+	[RoutineCall, zeroPad]
+	[VarSet, fullPath, [StrMerge, cfgInDir, cfgPrefix, padStr, ".obj"]]
+	[FileNameSetNext, fullPath]
+	[IPress, "Tool:Import"]                         //VERIFY: imports into / replaces current tool's mesh
+]
+
+//--------------------------------------------------------------
+//  Export frame number expIdx to the output folder
+//--------------------------------------------------------------
+[RoutineDef, dmExport,
+	[VarSet, padNum, expIdx]
+	[VarSet, padWidth, cfgPad]
+	[RoutineCall, zeroPad]
+	[VarSet, fullPath, [StrMerge, cfgOutDir, cfgPrefix, padStr, ".obj"]]
+	[FileNameSetNext, fullPath]
+	[IPress, "Tool:Export"]
+]
+
+//--------------------------------------------------------------
+//  Configure Decimation Master settings (backend-dependent)
+//--------------------------------------------------------------
+[RoutineDef, dmSetOptions,
+	// PREFERRED backend: Marcus's Batch_DM plugin reads this memblock.
+	// Layout (from Batch_DM_2022 source):
+	//   [0]=K polys [1]=freeze borders [2]=keep UVs
+	//   [3]=use/keep polypaint [4]=polypaint weight
+	//   [5]=uniform mesh [6]=threads
+	[If, [MemGetSize, Batch_DM_Settings],, [MVarDef, Batch_DM_Settings, 10, 0]]
+	[MVarSet, Batch_DM_Settings, 0, cfgKPolys]
+	[MVarSet, Batch_DM_Settings, 1, cfgFreezeB]
+	[MVarSet, Batch_DM_Settings, 2, cfgKeepUV]
+	[MVarSet, Batch_DM_Settings, 3, cfgKeepPP]
+	[MVarSet, Batch_DM_Settings, 4, 20]
+	[MVarSet, Batch_DM_Settings, 5, 0]
+	[MVarSet, Batch_DM_Settings, 6, 3]
+	// FALLBACK backend: stock Decimation Master sliders. //VERIFY names.
+	[If, [IExists, "ZPlugin:Decimation Master:K Polys"],
+		[ISet, "ZPlugin:Decimation Master:K Polys", cfgKPolys]
+	]
+]
+
+//--------------------------------------------------------------
+//  Fire the decimation (this ENDS script flow — replay continues)
+//--------------------------------------------------------------
+[RoutineDef, dmDecimate,
+	[If, [IExists, "ZPlugin:Batch Plugins:DM - Decimate Current"],
+		// preferred: Marcus's wrapper (pre-process + decimate in one)
+		[IPress, "ZPlugin:Batch Plugins:DM - Decimate Current"]
+	,
+		// fallback: stock Decimation Master (two steps) //VERIFY paths
+		[IPress, "ZPlugin:Decimation Master:Pre-process Current"]
+		[IPress, "ZPlugin:Decimation Master:Decimate Current"]
+	]
+]
+
+//--------------------------------------------------------------
+//  One chunk of work per script (re)run.
+//--------------------------------------------------------------
+[RoutineDef, DoIt,
+	[If, [MemGetSize, Bozz_DM_Mem],
+		[VarSet, run,   [MVarGet, Bozz_DM_Mem, 0]]
+		[VarSet, first, [MVarGet, Bozz_DM_Mem, 1]]
+		[VarSet, last,  [MVarGet, Bozz_DM_Mem, 2]]
+		[VarSet, count, last - first + 1]
+		// advance the run counter and persist it
+		[VarInc, run]
+		[MVarSet, Bozz_DM_Mem, 0, run]
+		// 1) export the file that was decimated on the PREVIOUS run
+		[If, run >= 2,
+			[VarSet, expIdx, first + run - 2]
+			[RoutineCall, dmExport]
+		]
+		// 2) finished?  (last import was at run==count)
+		[If, run > count,
+			[MemDelete, Bozz_DM_Mem]
+			[Note, "Bozzetto: batch decimation complete.", , 5]
+		,
+			// 3) import + start decimating the next file (flow ends in dmDecimate)
+			[VarSet, impIdx, first + run - 1]
+			[RoutineCall, dmImport]
+			[RoutineCall, dmSetOptions]
+			[RoutineCall, dmDecimate]
+			// no code after this runs — continues on the next replay
+		]
+	]
+]
+
+// Called every time the script (re)loads — drives the replay loop.
+[RoutineCall, DoIt]
+
+//--------------------------------------------------------------
+//  Button to kick off the batch.
+//--------------------------------------------------------------
+[IButton, "Bozzetto Decimate",
+	"Batch-decimate the configured OBJ sequence with Decimation Master.",
+	// tell ZBrush to replay THIS script after each decimation
+	[VarSet, zPath, [FileNameResolvePath, ZSCRIPT_FILENAME]]
+	[MemCreate, Replay_ZScript_Path, 256, 0]
+	[MemWriteString, Replay_ZScript_Path, zPath, 0]
+	// (re)initialise batch state
+	[If, [MemGetSize, Bozz_DM_Mem],, [MVarDef, Bozz_DM_Mem, 4, 0]]
+	[MVarSet, Bozz_DM_Mem, 0, 0]            // run counter
+	[MVarSet, Bozz_DM_Mem, 1, cfgFirst]
+	[MVarSet, Bozz_DM_Mem, 2, cfgLast]
+	[RoutineCall, DoIt]
+]
