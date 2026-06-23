@@ -164,9 +164,8 @@ it builds the project + manifest from the sorted mesh sequence.
   `testsculpt_0001` (flag `3` had also kept the picked file's name).
 
 ### Known limitations
-- **Set Output Folder** uses ZBrush's must-exist file dialog, so you select any
-  existing file *inside* the target folder (only the folder is used; drop a file
-  into an empty folder first). A folder-only picker via ZFileUtils is planned.
+- **Set Output Folder** opens a Save dialog with a name prefilled: browse to the
+  folder and click Save -- no file is created, only the folder is used.
 - ZBrush writes an **`.mtl`** next to each `.obj`. Bozzetto ignores non-mesh
   files, but to remove the clutter run a one-liner in the output folder:
   `del *.mtl` (Windows) or `rm *.mtl` (macOS/Linux). An optional in-ZBrush

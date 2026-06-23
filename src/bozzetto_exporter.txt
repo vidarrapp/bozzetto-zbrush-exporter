@@ -255,14 +255,14 @@
 [ISubPalette, "ZPlugin:Bozzetto Exporter"]
 
 [IButton, "ZPlugin:Bozzetto Exporter:Set Output Folder",
-	"Select ANY existing file inside your output folder -- only its folder is used. ZBrush's dialog needs a real file, so if the folder is empty, drop any file in it first. (A folder-only picker via ZFileUtils is planned.)",
-	// ZBrush's FileNameAsk is an OPEN dialog that REQUIRES an existing file
-	// (a typed name errors with "File not found"). So the user picks any file
-	// in the target folder and we keep only the FOLDER part. FileNameExtract
-	// flag 1 = path, 2 = name, 4 = ext; flag 3 (=1+2) wrongly kept the picked
-	// file's name (e.g. "testsculpt_0001"), so we use flag 1.
-	// "*.*" shows all files so anything already present can be picked.
-	[VarSet, bozzPick, [FileNameAsk, "*.*", , "Pick ANY existing file inside your OUTPUT folder -- only the folder is used"]]
+	"Browse to your output folder and click Save. A name is prefilled and NO file is created -- only the folder is used.",
+	// Per the Command Reference, FileNameAsk is a SAVE dialog when a default
+	// filename is supplied ("Default fileName for SaveDialog; omit for
+	// OpenDialog"), so passing "frames.obj" lets the user pick a folder and
+	// Save without needing an existing file. We keep only the FOLDER part:
+	// FileNameExtract flag 1 = path (2 = name, 4 = ext; flag 3 = path+name
+	// wrongly produced "testsculpt_0001").
+	[VarSet, bozzPick, [FileNameAsk, "*.obj", "frames.obj", "Browse to your OUTPUT folder and click Save (no file is created; only the folder is used)"]]
 	[If, [StrLength, bozzPick] > 0,
 		[VarSet, bozzDir, [FileNameExtract, bozzPick, 1]]   // flag 1 = folder path only
 		[VarSet, slashIn, bozzDir]
