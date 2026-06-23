@@ -255,16 +255,27 @@
 [ISubPalette, "ZPlugin:Bozzetto Exporter"]
 
 [IButton, "ZPlugin:Bozzetto Exporter:Set Output Folder",
-	"Choose the folder OBJ frames are written to. Browse INTO the folder, leave/type any name in the File name box, and click Open. No file is created -- only the folder is used. (You can also just select any existing file in that folder.)",
-	// FileNameAsk doubles as a save dialog: the typed name need NOT exist,
-	// so a prefilled default lets the user just click Open. We use only the
-	// folder part (FileNameExtract flag 3).
-	[VarSet, bozzPick, [FileNameAsk, "*.obj", "frames.obj", "Browse INTO your output folder, then click Open. The name need not exist; only the folder is used."]]
+	"Select ANY existing file inside your output folder -- only its folder is used. ZBrush's dialog needs a real file, so if the folder is empty, drop any file in it first. (A folder-only picker via ZFileUtils is planned.)",
+	// ZBrush's FileNameAsk is an OPEN dialog that REQUIRES an existing file
+	// (a typed name errors with "File not found"). So the user picks any file
+	// in the target folder and we keep only the FOLDER part. FileNameExtract
+	// flag 1 = path, 2 = name, 4 = ext; flag 3 (=1+2) wrongly kept the picked
+	// file's name (e.g. "testsculpt_0001"), so we use flag 1.
+	// "*.*" shows all files so anything already present can be picked.
+	[VarSet, bozzPick, [FileNameAsk, "*.*", , "Pick ANY existing file inside your OUTPUT folder -- only the folder is used"]]
 	[If, [StrLength, bozzPick] > 0,
-		[VarSet, bozzDir, [FileNameExtract, bozzPick, 3]]   //VERIFY: flag 3 = drive+path (incl. trailing slash)
+		[VarSet, bozzDir, [FileNameExtract, bozzPick, 1]]   // flag 1 = folder path only
 		[VarSet, slashIn, bozzDir]
 		[RoutineCall, slashify]
 		[VarSet, bozzDir, slashOut]
+		// guarantee a trailing "/" so dir + prefix don't run together
+		[VarSet, slashLen, [StrLength, bozzDir]]
+		[If, slashLen > 0,
+			[VarSet, slashCh, [StrExtract, bozzDir, slashLen - 1, slashLen - 1]]
+			[If, [StrToAsc, slashCh] != 47,
+				[VarSet, bozzDir, [StrMerge, bozzDir, "/"]]
+			]
+		]
 		[MemWriteString, Bozz_OutDir, bozzDir, 0]
 		[Note, [StrMerge, "Output folder set: ", bozzDir], , 4]
 	]
