@@ -1,0 +1,276 @@
+//==============================================================
+//  Bozzetto Exporter  —  ZBrush 2022+
+//--------------------------------------------------------------
+//  Exports a sculpt's UNDO-HISTORY steps (or manual snapshots)
+//  as a sequential OBJ mesh sequence for the Bozzetto timelapse
+//  viewer:  https://github.com/vidarrapp/bozzetto
+//
+//  Output:  <folder>/sculpt_0001.obj, sculpt_0002.obj, ...
+//           One OBJ per frame; Tool:Export merges all VISIBLE
+//           SubTools into that single file.
+//
+//  Decimation to Bozzetto's triangle budget is a SEPARATE,
+//  optional step (it is not always needed — exporting at a lower
+//  subdivision level is often enough). See:
+//     scripts/decimate_sequence.py      (PyMeshLab, command line)
+//     src/bozzetto_decimate_dm.txt      (in-ZBrush Decimation Master)
+//
+//  INSTALL
+//    * Compile this .txt to .zsc (ZScript palette > Load this file,
+//      or use the ZScript compiler) and drop the .zsc into
+//        Pixologic/ZBrush 2022/ZStartup/ZPlugs64/
+//      so it auto-loads, OR
+//    * Preferences > ZPlugin/ZScript and Load the .zsc each session.
+//    The UI appears as a "Bozzetto Exporter" subpalette in ZPlugin.
+//
+//  -------------------------------------------------------------
+//  !! VERIFY-ON-HARDWARE
+//  -------------------------------------------------------------
+//  This plugin was authored without a running ZBrush, against the
+//  ZScript Command Reference + a verified community plugin. Lines
+//  marked //VERIFY use command paths/args that should be confirmed
+//  on a real machine. The single biggest unknown is the Undo
+//  Counter interface path; the "Detect Undo History" button probes
+//  for it and reports the result, so start there.
+//
+//  Assumed ISlider signature (confirm if sliders fail to compile):
+//     [ISlider, "Palette:Sub:Name", value, resolution, min, max,
+//               "popup text", {optional action}]
+//==============================================================
+
+[IConfig, 2022]   //VERIFY: declares the UI was built for ZBrush 2022 sizing
+
+//--------------------------------------------------------------
+//  Global variables (ZScript vars are global; routines share them)
+//--------------------------------------------------------------
+[VarDef, bozzPrefixDefault, "sculpt_"]
+[VarDef, bozzPick, ""]
+[VarDef, bozzDir, ""]
+[VarDef, bozzPre, ""]
+[VarDef, bozzSD, 0]
+[VarDef, bozzIdx, 1]
+[VarDef, bozzUndo, ""]
+[VarDef, bozzFound, ""]
+[VarDef, bozzMaxStep, 0]
+[VarDef, bozzMinStep, 0]
+[VarDef, bozzStride, 1]
+[VarDef, bozzCap, 0]
+[VarDef, bozzCount, 0]
+[VarDef, bozzNeed, 0]
+[VarDef, bozzWas, 0]
+[VarDef, bozzStep, 0]
+[VarDef, bozzIters, 0]
+[VarDef, bozzI, 0]
+[VarDef, bozzPadNum, 0]
+[VarDef, bozzPadWidth, 4]
+[VarDef, bozzPadStr, ""]
+[VarDef, bozzNamePath, ""]
+
+//--------------------------------------------------------------
+//  Persistent state, kept in memblocks so it survives across
+//  button presses for the life of this ZBrush session.
+//     Bozz_State[0] = next frame number (int)
+//     Bozz_OutDir   = output directory string (incl. trailing slash)
+//     Bozz_Prefix   = filename prefix string
+//     Bozz_UndoPath = detected Undo-Counter interface path string
+//  (Cross-restart persistence to a prefs file is a future polish.)
+//--------------------------------------------------------------
+[RoutineDef, bozzInit,
+	[If, [MemGetSize, Bozz_State],,
+		[MVarDef, Bozz_State, 4, 0]
+		[MVarSet, Bozz_State, 0, 1]
+	]
+	[If, [MemGetSize, Bozz_OutDir],, [MemCreate, Bozz_OutDir, 1024, 0]]
+	[If, [MemGetSize, Bozz_Prefix],,
+		[MemCreate, Bozz_Prefix, 256, 0]
+		[MemWriteString, Bozz_Prefix, bozzPrefixDefault, 0]
+	]
+	[If, [MemGetSize, Bozz_UndoPath],, [MemCreate, Bozz_UndoPath, 256, 0]]
+]
+
+//--------------------------------------------------------------
+//  Zero-pad bozzPadNum to bozzPadWidth digits -> bozzPadStr
+//  e.g. (1, 4) -> "0001"
+//--------------------------------------------------------------
+[RoutineDef, bozzPad,
+	[VarSet, bozzPadStr, [StrMerge, "", bozzPadNum]]   //VERIFY: numeric -> string coercion
+	[VarSet, bozzNeed, bozzPadWidth - [StrLength, bozzPadStr]]
+	[If, bozzNeed > 0,
+		[Loop, bozzNeed,
+			[VarSet, bozzPadStr, [StrMerge, "0", bozzPadStr]]
+		]
+	]
+]
+
+//--------------------------------------------------------------
+//  Build the next frame's full path -> bozzNamePath
+//     <dir><prefix><zero-padded index>.obj
+//--------------------------------------------------------------
+[RoutineDef, bozzFrameName,
+	[VarSet, bozzPadNum, [MVarGet, Bozz_State, 0]]
+	[VarSet, bozzPadWidth, [IGet, "ZPlugin:Bozzetto Exporter:Filename Padding"]]
+	[RoutineCall, bozzPad]
+	[VarSet, bozzDir, [MemReadString, Bozz_OutDir, 0]]
+	[VarSet, bozzPre, [MemReadString, Bozz_Prefix, 0]]
+	[VarSet, bozzNamePath, [StrMerge, bozzDir, bozzPre, bozzPadStr, ".obj"]]
+]
+
+//--------------------------------------------------------------
+//  Export the current visible mesh state as the next frame.
+//  Used by both "Capture Stage" and the undo-history loop.
+//--------------------------------------------------------------
+[RoutineDef, bozzExportCurrent,
+	[VarSet, bozzDir, [MemReadString, Bozz_OutDir, 0]]
+	[If, [StrLength, bozzDir] == 0,
+		[Note, "Set the output folder first (Set Output Folder).", , 3]   //VERIFY: Note args (text, handle, seconds)
+	,
+		// optional: set the subdivision level to export (0 = leave as-is)
+		[VarSet, bozzSD, [IGet, "ZPlugin:Bozzetto Exporter:Export Subdiv Level"]]
+		[If, bozzSD > 0,
+			[If, [IExists, "Tool:Geometry:SDiv"],
+				[ISet, "Tool:Geometry:SDiv", bozzSD]   //VERIFY: path + that export uses active level
+			]
+		]
+		// name + export (Tool:Export merges all visible SubTools)
+		[RoutineCall, bozzFrameName]
+		[FileNameSetNext, bozzNamePath]
+		[IPress, "Tool:Export"]                        // confirmed pattern
+		// advance the counter and reflect it in the UI
+		[VarSet, bozzIdx, [MVarGet, Bozz_State, 0] + 1]
+		[MVarSet, Bozz_State, 0, bozzIdx]
+		[ISet, "ZPlugin:Bozzetto Exporter:Next Frame #", bozzIdx]
+	]
+]
+
+//--------------------------------------------------------------
+//  Probe for the per-SubTool Undo Counter control. It lives in
+//  Edit > Tool, but the exact ZScript token is version-specific,
+//  so we try several and keep the first that exists.
+//--------------------------------------------------------------
+[RoutineDef, bozzDetectUndo,
+	[MemWriteString, Bozz_UndoPath, "", 0]
+	[VarSet, bozzFound, ""]
+	[If, [IExists, "Edit:Tool:UndoHistory"],   [VarSet, bozzFound, "Edit:Tool:UndoHistory"]]
+	[If, [StrLength, bozzFound] == 0, [If, [IExists, "Edit:Tool:Undo History"], [VarSet, bozzFound, "Edit:Tool:Undo History"]]]
+	[If, [StrLength, bozzFound] == 0, [If, [IExists, "Edit:Tool:Undo Counter"], [VarSet, bozzFound, "Edit:Tool:Undo Counter"]]]
+	[If, [StrLength, bozzFound] == 0, [If, [IExists, "Edit:Tool:UndoCounter"],  [VarSet, bozzFound, "Edit:Tool:UndoCounter"]]]
+	[If, [StrLength, bozzFound] == 0, [If, [IExists, "Edit:Tool:Undo"],         [VarSet, bozzFound, "Edit:Tool:Undo"]]]
+	[If, [StrLength, bozzFound] > 0,
+		[MemWriteString, Bozz_UndoPath, bozzFound, 0]
+		[Note, [StrMerge, "Undo Counter found: ", bozzFound, "   (max step = ", [IGetMax, bozzFound], ")"], , 5]
+	,
+		[Note, "Undo Counter control not found by auto-probe. Note your Edit>Tool slider's exact name and add it to bozzDetectUndo, or use Capture Stage.", , 6]
+	]
+]
+
+//--------------------------------------------------------------
+//  Walk the undo history oldest -> newest, exporting one frame
+//  per (sub-sampled) step, then restore the latest step.
+//
+//  NOTE: Tool:Export is synchronous, so a straight loop works.
+//  IF on your hardware scrubbing the Undo Counter breaks script
+//  flow (the way Decimation Master does), switch to the memblock
+//  "replay" pattern used in src/bozzetto_decimate_dm.txt.
+//--------------------------------------------------------------
+[RoutineDef, bozzExportHistory,
+	[VarSet, bozzDir, [MemReadString, Bozz_OutDir, 0]]
+	[If, [StrLength, bozzDir] == 0,
+		[Note, "Set the output folder first (Set Output Folder).", , 3]
+	,
+		// make sure we have an undo-counter path (detect if needed)
+		[VarSet, bozzUndo, [MemReadString, Bozz_UndoPath, 0]]
+		[If, [StrLength, bozzUndo] == 0,
+			[RoutineCall, bozzDetectUndo]
+			[VarSet, bozzUndo, [MemReadString, Bozz_UndoPath, 0]]
+		]
+		[If, [StrLength, bozzUndo] == 0,
+			[Note, "No Undo Counter control found. Use Capture Stage instead.", , 5]
+		,
+			[VarSet, bozzMaxStep, [IGetMax, bozzUndo]]
+			[VarSet, bozzMinStep, [IGetMin, bozzUndo]]   //VERIFY: usually 0
+			[If, bozzMaxStep <= bozzMinStep,
+				[Note, "No undo history on the active SubTool. Raise Preferences>Undo History>Max Undo History and sculpt with history enabled.", , 6]
+			,
+				// stride from "Every Nth Step", widened to honour "Max Frames"
+				[VarSet, bozzStride, [IGet, "ZPlugin:Bozzetto Exporter:Every Nth Step"]]
+				[If, bozzStride < 1, [VarSet, bozzStride, 1]]
+				[VarSet, bozzCap, [IGet, "ZPlugin:Bozzetto Exporter:Max Frames (0=all)"]]
+				[VarSet, bozzCount, bozzMaxStep - bozzMinStep]
+				[If, bozzCap > 0,
+					[VarSet, bozzNeed, (bozzCount / bozzCap) + 1]
+					[If, bozzNeed > bozzStride, [VarSet, bozzStride, bozzNeed]]
+				]
+				// remember current step to restore later
+				[VarSet, bozzWas, [IGet, bozzUndo]]
+				// iterate (extra +1 iteration is guarded by the inner If)
+				[VarSet, bozzIters, (bozzCount / bozzStride) + 1]
+				[Loop, bozzIters,
+					[VarSet, bozzStep, bozzMinStep + (bozzI * bozzStride)]
+					[If, bozzStep <= bozzMaxStep,
+						[ISet, bozzUndo, bozzStep]            //VERIFY: scrubs geometry to this step
+						[RoutineCall, bozzExportCurrent]
+					]
+				, bozzI]
+				// restore the latest state
+				[ISet, bozzUndo, bozzWas]
+				[Note, "Undo-history export complete.", , 4]
+			]
+		]
+	]
+]
+
+//--------------------------------------------------------------
+//  Initialise state, then build the UI.
+//--------------------------------------------------------------
+[RoutineCall, bozzInit]
+
+[ISubPalette, "ZPlugin:Bozzetto Exporter"]
+
+[IButton, "ZPlugin:Bozzetto Exporter:Set Output Folder",
+	"Choose the folder OBJ frames are written to. Browse INTO the folder, type any filename, and Save — only the folder part is used.",
+	[VarSet, bozzPick, [FileNameAsk, "*.obj", , "Select OUTPUT FOLDER (type any name; only the folder is used)"]]
+	[If, [StrLength, bozzPick] > 0,
+		[VarSet, bozzDir, [FileNameExtract, bozzPick, 3]]   //VERIFY: flag 3 = drive+path (incl. trailing slash)
+		[MemWriteString, Bozz_OutDir, bozzDir, 0]
+		[Note, [StrMerge, "Output folder set: ", bozzDir], , 4]
+	]
+]
+
+[ISlider, "ZPlugin:Bozzetto Exporter:Export Subdiv Level", 0, 1, 0, 8,
+	"Subdivision level to export (0 = keep the current level). Lower levels = smaller files."]
+
+[ISlider, "ZPlugin:Bozzetto Exporter:Filename Padding", 4, 1, 1, 8,
+	"Zero-padding width for the frame number (4 -> sculpt_0001.obj)."]
+
+[ISlider, "ZPlugin:Bozzetto Exporter:Every Nth Step", 1, 1, 1, 50,
+	"Export every Nth undo step (1 = every step)."]
+
+[ISlider, "ZPlugin:Bozzetto Exporter:Max Frames (0=all)", 0, 1, 0, 2000,
+	"Cap the total frame count; the step stride is auto-derived (0 = no cap)."]
+
+[ISlider, "ZPlugin:Bozzetto Exporter:Next Frame #", 1, 1, 1, 9999,
+	"Number used for the next exported frame. Edit to resume an existing sequence.",
+	[MVarSet, Bozz_State, 0, [IGet, "ZPlugin:Bozzetto Exporter:Next Frame #"]]
+]
+
+[IButton, "ZPlugin:Bozzetto Exporter:Detect Undo History",
+	"Probe ZBrush for the Undo Counter control and report how many history steps the active SubTool has. Run this first.",
+	[RoutineCall, bozzDetectUndo]
+]
+
+[IButton, "ZPlugin:Bozzetto Exporter:Export Undo History",
+	"Step through the active SubTool's undo history and export one OBJ per (sub-sampled) step.",
+	[RoutineCall, bozzExportHistory]
+]
+
+[IButton, "ZPlugin:Bozzetto Exporter:Capture Stage",
+	"Manually export the current state as the next frame. Reliable fallback, independent of undo history.",
+	[RoutineCall, bozzExportCurrent]
+]
+
+[IButton, "ZPlugin:Bozzetto Exporter:New Sequence (Reset)",
+	"Reset the frame counter to 1 to start a fresh sequence.",
+	[MVarSet, Bozz_State, 0, 1]
+	[ISet, "ZPlugin:Bozzetto Exporter:Next Frame #", 1]
+	[Note, "Frame counter reset to 1.", , 3]
+]
