@@ -255,13 +255,27 @@
 [ISubPalette, "ZPlugin:Bozzetto Exporter"]
 
 [IButton, "ZPlugin:Bozzetto Exporter:Set Output Folder",
-	"Choose the folder OBJ frames are written to. Browse INTO the folder, type any NEW filename (it is not created), and Save — only the folder part is used.",
-	[VarSet, bozzPick, [FileNameAsk, "*.obj", , "Select OUTPUT FOLDER: browse into it, type any name, Save (only the folder is used)"]]
+	"Browse to your output folder and click Save. A name is prefilled and NO file is created -- only the folder is used.",
+	// Per the Command Reference, FileNameAsk is a SAVE dialog when a default
+	// filename is supplied ("Default fileName for SaveDialog; omit for
+	// OpenDialog"), so passing "frames.obj" lets the user pick a folder and
+	// Save without needing an existing file. We keep only the FOLDER part:
+	// FileNameExtract flag 1 = path (2 = name, 4 = ext; flag 3 = path+name
+	// wrongly produced "testsculpt_0001").
+	[VarSet, bozzPick, [FileNameAsk, "*.obj", "frames.obj", "Browse to your OUTPUT folder and click Save (no file is created; only the folder is used)"]]
 	[If, [StrLength, bozzPick] > 0,
-		[VarSet, bozzDir, [FileNameExtract, bozzPick, 3]]   //VERIFY: flag 3 = drive+path (incl. trailing slash)
+		[VarSet, bozzDir, [FileNameExtract, bozzPick, 1]]   // flag 1 = folder path only
 		[VarSet, slashIn, bozzDir]
 		[RoutineCall, slashify]
 		[VarSet, bozzDir, slashOut]
+		// guarantee a trailing "/" so dir + prefix don't run together
+		[VarSet, slashLen, [StrLength, bozzDir]]
+		[If, slashLen > 0,
+			[VarSet, slashCh, [StrExtract, bozzDir, slashLen - 1, slashLen - 1]]
+			[If, [StrToAsc, slashCh] != 47,
+				[VarSet, bozzDir, [StrMerge, bozzDir, "/"]]
+			]
+		]
 		[MemWriteString, Bozz_OutDir, bozzDir, 0]
 		[Note, [StrMerge, "Output folder set: ", bozzDir], , 4]
 	]

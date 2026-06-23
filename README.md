@@ -149,23 +149,27 @@ it builds the project + manifest from the sorted mesh sequence.
   **Detect Undo History** button probes candidates and reports what it finds).
 - That **setting the undo counter scrubs the geometry** to that step and is
   synchronous in a loop (if not, switch to the replay pattern).
-- The `slashify` string ops (`StrExtract`, `StrToAsc`) used to convert the
-  picked path to forward slashes.
-- `Tool:Geometry:SDiv` set, `FileNameExtract` flag `3` (drive+path), the
-  `ISlider` argument order, and numeric→string coercion in `StrMerge`.
+- `Tool:Geometry:SDiv` set, the `ISlider` argument order, and numeric→string
+  coercion in `StrMerge`.
 - Stock **Decimation Master** control names in the fallback path.
 
-### Fixed during testing
-- `MemReadString` now writes into a target variable
-  (`[MemReadString, block, var, offset]`) instead of being read as a return
-  value — fixes the "Incorrect Variable input type" error.
-- Paths are converted to **forward slashes** on input, because `StrMerge`/`Note`
-  drop backslashes (which mangled the output folder path).
+### Confirmed working / fixed during testing
+- The export pipeline runs and writes the OBJ sequence into the chosen folder.
+- `MemReadString` writes into a target variable
+  (`[MemReadString, block, var, offset]`) — fixed the "Incorrect Variable
+  input type" error.
+- Paths are converted to **forward slashes** on input (`slashify`, using
+  `StrExtract`/`StrToAsc`) — fixed the backslash-stripping; those string ops work.
+- `FileNameExtract` flag **`1`** (folder path) — fixed filenames coming out as
+  `testsculpt_0001` (flag `3` had also kept the picked file's name).
 
-### Known limitation
-- **Set Output Folder** uses ZBrush's file dialog, so it asks for a *filename*.
-  Browse into the target folder, type any name, and Save — only the folder is
-  used. (A folder-only picker needs the ZFileUtils plugin; planned.)
+### Known limitations
+- **Set Output Folder** opens a Save dialog with a name prefilled: browse to the
+  folder and click Save -- no file is created, only the folder is used.
+- ZBrush writes an **`.mtl`** next to each `.obj`. Bozzetto ignores non-mesh
+  files, but to remove the clutter run a one-liner in the output folder:
+  `del *.mtl` (Windows) or `rm *.mtl` (macOS/Linux). An optional in-ZBrush
+  auto-delete (via ZFileUtils) can be added if wanted.
 
 ---
 
