@@ -17,31 +17,33 @@
 //
 //  INSTALL
 //    * Compile this .txt to .zsc (ZScript palette > Load this file,
-//      or use the ZScript compiler) and drop the .zsc into
+//      then Save As .zsc) and drop the .zsc into
 //        Pixologic/ZBrush 2022/ZStartup/ZPlugs64/
 //      so it auto-loads, OR
 //    * Preferences > ZPlugin/ZScript and Load the .zsc each session.
 //    The UI appears as a "Bozzetto Exporter" subpalette in ZPlugin.
 //
 //  -------------------------------------------------------------
-//  !! VERIFY-ON-HARDWARE
+//  NOTES ON THINGS LEARNED THE HARD WAY
 //  -------------------------------------------------------------
-//  This plugin was authored without a running ZBrush, against the
-//  ZScript Command Reference + a verified community plugin. Lines
-//  marked //VERIFY use command paths/args that should be confirmed
-//  on a real machine. The single biggest unknown is the Undo
-//  Counter interface path; the "Detect Undo History" button probes
-//  for it and reports the result, so start there.
+//  * MemReadString WRITES into a target variable; it does not
+//    return a value:  [MemReadString, block, targetVar, offset]
+//  * StrMerge / Note drop backslashes, and ZBrush accepts forward
+//    slashes in paths, so we convert "\" -> "/" on input and use
+//    forward slashes everywhere (see the slashify routine).
+//  * Global vars can be flushed when another script loads, so
+//    persistent state lives in memblocks.
 //
-//  Assumed ISlider signature (confirm if sliders fail to compile):
-//     [ISlider, "Palette:Sub:Name", value, resolution, min, max,
-//               "popup text", {optional action}]
+//  Lines marked //VERIFY use command paths/args that still want a
+//  sanity check on real hardware. The biggest unknown is the Undo
+//  Counter interface path; the "Detect Undo History" button probes
+//  for it — run that first.
 //==============================================================
 
 [IConfig, 2022]   //VERIFY: declares the UI was built for ZBrush 2022 sizing
 
 //--------------------------------------------------------------
-//  Global variables (ZScript vars are global; routines share them)
+//  Global variables (shared by the routines below)
 //--------------------------------------------------------------
 [VarDef, bozzPrefixDefault, "sculpt_"]
 [VarDef, bozzPick, ""]
@@ -65,15 +67,21 @@
 [VarDef, bozzPadWidth, 4]
 [VarDef, bozzPadStr, ""]
 [VarDef, bozzNamePath, ""]
+// slashify scratch vars
+[VarDef, slashIn, ""]
+[VarDef, slashOut, ""]
+[VarDef, slashLen, 0]
+[VarDef, slashI, 0]
+[VarDef, slashCh, ""]
+[VarDef, slashCode, 0]
 
 //--------------------------------------------------------------
-//  Persistent state, kept in memblocks so it survives across
-//  button presses for the life of this ZBrush session.
+//  Persistent state in memblocks (survive button presses).
 //     Bozz_State[0] = next frame number (int)
-//     Bozz_OutDir   = output directory string (incl. trailing slash)
+//     Bozz_OutDir   = output directory string (forward slashes,
+//                     incl. trailing "/")
 //     Bozz_Prefix   = filename prefix string
 //     Bozz_UndoPath = detected Undo-Counter interface path string
-//  (Cross-restart persistence to a prefs file is a future polish.)
 //--------------------------------------------------------------
 [RoutineDef, bozzInit,
 	[If, [MemGetSize, Bozz_State],,
@@ -89,8 +97,28 @@
 ]
 
 //--------------------------------------------------------------
+//  Convert backslashes in slashIn to forward slashes -> slashOut.
+//  ZBrush accepts forward slashes in paths, and this avoids the
+//  StrMerge/Note backslash-stripping problem.
+//--------------------------------------------------------------
+[RoutineDef, slashify,
+	[VarSet, slashOut, ""]
+	[VarSet, slashLen, [StrLength, slashIn]]
+	[If, slashLen > 0,
+		[Loop, slashLen,
+			[VarSet, slashCh, [StrExtract, slashIn, slashI, slashI]]  //VERIFY: 0-based, inclusive single char
+			[VarSet, slashCode, [StrToAsc, slashCh]]                  //VERIFY: ASCII code of the char (92 = "\")
+			[If, slashCode == 92,
+				[VarSet, slashOut, [StrMerge, slashOut, "/"]]
+			,
+				[VarSet, slashOut, [StrMerge, slashOut, slashCh]]
+			]
+		, slashI]
+	]
+]
+
+//--------------------------------------------------------------
 //  Zero-pad bozzPadNum to bozzPadWidth digits -> bozzPadStr
-//  e.g. (1, 4) -> "0001"
 //--------------------------------------------------------------
 [RoutineDef, bozzPad,
 	[VarSet, bozzPadStr, [StrMerge, "", bozzPadNum]]   //VERIFY: numeric -> string coercion
@@ -104,14 +132,14 @@
 
 //--------------------------------------------------------------
 //  Build the next frame's full path -> bozzNamePath
-//     <dir><prefix><zero-padded index>.obj
+//     <dir><prefix><zero-padded index>.obj   (forward slashes)
 //--------------------------------------------------------------
 [RoutineDef, bozzFrameName,
 	[VarSet, bozzPadNum, [MVarGet, Bozz_State, 0]]
 	[VarSet, bozzPadWidth, [IGet, "ZPlugin:Bozzetto Exporter:Filename Padding"]]
 	[RoutineCall, bozzPad]
-	[VarSet, bozzDir, [MemReadString, Bozz_OutDir, 0]]
-	[VarSet, bozzPre, [MemReadString, Bozz_Prefix, 0]]
+	[MemReadString, Bozz_OutDir, bozzDir, 0]   // reads into bozzDir
+	[MemReadString, Bozz_Prefix, bozzPre, 0]   // reads into bozzPre
 	[VarSet, bozzNamePath, [StrMerge, bozzDir, bozzPre, bozzPadStr, ".obj"]]
 ]
 
@@ -120,7 +148,7 @@
 //  Used by both "Capture Stage" and the undo-history loop.
 //--------------------------------------------------------------
 [RoutineDef, bozzExportCurrent,
-	[VarSet, bozzDir, [MemReadString, Bozz_OutDir, 0]]
+	[MemReadString, Bozz_OutDir, bozzDir, 0]
 	[If, [StrLength, bozzDir] == 0,
 		[Note, "Set the output folder first (Set Output Folder).", , 3]   //VERIFY: Note args (text, handle, seconds)
 	,
@@ -173,15 +201,15 @@
 //  "replay" pattern used in src/bozzetto_decimate_dm.txt.
 //--------------------------------------------------------------
 [RoutineDef, bozzExportHistory,
-	[VarSet, bozzDir, [MemReadString, Bozz_OutDir, 0]]
+	[MemReadString, Bozz_OutDir, bozzDir, 0]
 	[If, [StrLength, bozzDir] == 0,
 		[Note, "Set the output folder first (Set Output Folder).", , 3]
 	,
 		// make sure we have an undo-counter path (detect if needed)
-		[VarSet, bozzUndo, [MemReadString, Bozz_UndoPath, 0]]
+		[MemReadString, Bozz_UndoPath, bozzUndo, 0]
 		[If, [StrLength, bozzUndo] == 0,
 			[RoutineCall, bozzDetectUndo]
-			[VarSet, bozzUndo, [MemReadString, Bozz_UndoPath, 0]]
+			[MemReadString, Bozz_UndoPath, bozzUndo, 0]
 		]
 		[If, [StrLength, bozzUndo] == 0,
 			[Note, "No Undo Counter control found. Use Capture Stage instead.", , 5]
@@ -227,10 +255,13 @@
 [ISubPalette, "ZPlugin:Bozzetto Exporter"]
 
 [IButton, "ZPlugin:Bozzetto Exporter:Set Output Folder",
-	"Choose the folder OBJ frames are written to. Browse INTO the folder, type any filename, and Save — only the folder part is used.",
-	[VarSet, bozzPick, [FileNameAsk, "*.obj", , "Select OUTPUT FOLDER (type any name; only the folder is used)"]]
+	"Choose the folder OBJ frames are written to. Browse INTO the folder, type any NEW filename (it is not created), and Save — only the folder part is used.",
+	[VarSet, bozzPick, [FileNameAsk, "*.obj", , "Select OUTPUT FOLDER: browse into it, type any name, Save (only the folder is used)"]]
 	[If, [StrLength, bozzPick] > 0,
 		[VarSet, bozzDir, [FileNameExtract, bozzPick, 3]]   //VERIFY: flag 3 = drive+path (incl. trailing slash)
+		[VarSet, slashIn, bozzDir]
+		[RoutineCall, slashify]
+		[VarSet, bozzDir, slashOut]
 		[MemWriteString, Bozz_OutDir, bozzDir, 0]
 		[Note, [StrMerge, "Output folder set: ", bozzDir], , 4]
 	]

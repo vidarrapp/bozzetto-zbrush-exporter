@@ -149,9 +149,23 @@ it builds the project + manifest from the sorted mesh sequence.
   **Detect Undo History** button probes candidates and reports what it finds).
 - That **setting the undo counter scrubs the geometry** to that step and is
   synchronous in a loop (if not, switch to the replay pattern).
-- `Tool:Geometry:SDiv` set, `FileNameExtract` flag for folder, the `ISlider`
-  argument order, and numeric→string coercion in `StrMerge`.
+- The `slashify` string ops (`StrExtract`, `StrToAsc`) used to convert the
+  picked path to forward slashes.
+- `Tool:Geometry:SDiv` set, `FileNameExtract` flag `3` (drive+path), the
+  `ISlider` argument order, and numeric→string coercion in `StrMerge`.
 - Stock **Decimation Master** control names in the fallback path.
+
+### Fixed during testing
+- `MemReadString` now writes into a target variable
+  (`[MemReadString, block, var, offset]`) instead of being read as a return
+  value — fixes the "Incorrect Variable input type" error.
+- Paths are converted to **forward slashes** on input, because `StrMerge`/`Note`
+  drop backslashes (which mangled the output folder path).
+
+### Known limitation
+- **Set Output Folder** uses ZBrush's file dialog, so it asks for a *filename*.
+  Browse into the target folder, type any name, and Save — only the folder is
+  used. (A folder-only picker needs the ZFileUtils plugin; planned.)
 
 ---
 

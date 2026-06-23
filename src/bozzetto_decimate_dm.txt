@@ -43,8 +43,10 @@
 //  CONFIG — edit these to match your sequence
 //--------------------------------------------------------------
 [VarDef, ZSCRIPT_FILENAME, "bozzetto_decimate_dm.txt"]  // must match this file's name!
-[VarDef, cfgInDir,   "C:\bozzetto\raw\"]        // folder with the source OBJs (trailing slash)
-[VarDef, cfgOutDir,  "C:\bozzetto\decimated\"]  // folder for decimated OBJs (must exist)
+// Use FORWARD slashes — ZBrush accepts them and backslashes get mangled
+// by StrMerge (and a trailing "\" before a quote breaks the string).
+[VarDef, cfgInDir,   "C:/bozzetto/raw/"]        // folder with the source OBJs (trailing slash)
+[VarDef, cfgOutDir,  "C:/bozzetto/decimated/"]  // folder for decimated OBJs (must exist)
 [VarDef, cfgPrefix,  "sculpt_"]                 // filename prefix
 [VarDef, cfgPad,     4]                         // zero-pad width
 [VarDef, cfgFirst,   1]                         // first frame number
