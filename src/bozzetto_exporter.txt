@@ -255,8 +255,11 @@
 [ISubPalette, "ZPlugin:Bozzetto Exporter"]
 
 [IButton, "ZPlugin:Bozzetto Exporter:Set Output Folder",
-	"Choose the folder OBJ frames are written to. Browse INTO the folder, type any NEW filename (it is not created), and Save — only the folder part is used.",
-	[VarSet, bozzPick, [FileNameAsk, "*.obj", , "Select OUTPUT FOLDER: browse into it, type any name, Save (only the folder is used)"]]
+	"Choose the folder OBJ frames are written to. Browse INTO the folder, leave/type any name in the File name box, and click Open. No file is created -- only the folder is used. (You can also just select any existing file in that folder.)",
+	// FileNameAsk doubles as a save dialog: the typed name need NOT exist,
+	// so a prefilled default lets the user just click Open. We use only the
+	// folder part (FileNameExtract flag 3).
+	[VarSet, bozzPick, [FileNameAsk, "*.obj", "frames.obj", "Browse INTO your output folder, then click Open. The name need not exist; only the folder is used."]]
 	[If, [StrLength, bozzPick] > 0,
 		[VarSet, bozzDir, [FileNameExtract, bozzPick, 3]]   //VERIFY: flag 3 = drive+path (incl. trailing slash)
 		[VarSet, slashIn, bozzDir]
