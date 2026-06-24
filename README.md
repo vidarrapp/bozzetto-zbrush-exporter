@@ -15,12 +15,12 @@ frame. This exporter produces the mesh sequence; Bozzetto's in-browser
 
 ## Status
 
-**v0.1 — alpha, being validated on ZBrush 2022.** The core flow works:
-**Detect Undo History** reports the correct step count, and **Export Undo
-History** writes one OBJ per step into the chosen folder. A couple of items are
-still marked `//VERIFY` in the source (mainly: that scrubbing the undo counter
-yields correct *per-step* geometry — confirm by eyeballing the frames).
-**Capture Stage** is a reliable manual fallback, independent of undo history.
+**v0.1 — validated end to end on ZBrush 2022.** Undo-history capture works:
+**Detect Undo History** reports the correct step count, **Export Undo History**
+writes one OBJ per step, and the frames step through the sculpt's progression
+correctly. Remaining untested polish: the **Export Subdiv Level** control, the
+optional decimation scripts, and multi-SubTool handling. **Capture Stage** is a
+reliable manual fallback, independent of undo history.
 
 ---
 
@@ -156,8 +156,9 @@ it builds the project + manifest from the sorted mesh sequence.
 ## Status of commands
 
 ### Confirmed (ZBrush 2022 + the Command Reference)
-- Undo-history detection reports the correct step count; the exporter writes the
-  sequence into the chosen folder.
+- **Undo-history capture validated end to end**: detection reports the correct
+  step count, scrubbing yields correct per-step geometry, and exported frames
+  progress correctly.
 - `MemReadString` writes into a target variable
   (`[MemReadString, block, var, offset]`).
 - Paths converted to **forward slashes** on input (`slashify`,
@@ -167,8 +168,6 @@ it builds the project + manifest from the sorted mesh sequence.
 - `ISlider`, `Note`, `FileNameSetNext`, `FileExists`, `MessageOKCancel` confirmed.
 
 ### Still to verify (`//VERIFY`)
-- That **setting the undo counter scrubs the geometry** to each step (eyeball the
-  frames) and is synchronous in a loop.
 - `Tool:Geometry:SDiv` (setting the export subdivision level).
 - The ImportExport export-toggle paths (auto-set `Txr/Mrg/Qud/Tri`) — probed via
   `IExists`, so harmless if a name differs; tell me if `.mtl` files persist.
