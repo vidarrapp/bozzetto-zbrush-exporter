@@ -19,10 +19,11 @@
 //  Pixologic/ZBrush 2022/ZStartup/ZPlugs64/. UI appears as a
 //  "Bozzetto Exporter" subpalette in ZPlugin.
 //
-//  All command paths/args below are confirmed against the ZScript
-//  Command Reference 2022 and live testing, EXCEPT where marked
-//  //VERIFY (currently: the Undo Counter path, which the "Detect
-//  Undo History" button probes, and Tool:Geometry:SDiv).
+//  Command paths/args below are confirmed against the ZScript Command
+//  Reference 2022 and live testing -- undo-history capture is validated
+//  end to end (detect -> scrub -> export -> frames progress correctly).
+//  Remaining //VERIFY items: Tool:Geometry:SDiv (subdivision-level
+//  export) and the ImportExport export-toggle paths.
 //==============================================================
 
 [IConfig, 2022]
@@ -254,7 +255,7 @@
 					[Loop, bozzIters,
 						[VarSet, bozzStep, bozzMinStep + (bozzI * bozzStride)]
 						[If, bozzStep <= bozzMaxStep,
-							[ISet, bozzUndo, bozzStep]            //VERIFY: scrubs geometry to this step
+							[ISet, bozzUndo, bozzStep]            // scrubs geometry to this step (validated end to end)
 							[RoutineCall, bozzExportCurrent]
 						]
 					, bozzI]
