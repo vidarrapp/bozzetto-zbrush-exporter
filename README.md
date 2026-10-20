@@ -143,17 +143,20 @@ on-hardware tuning; the PyMeshLab route is the safe default.
 
 ---
 
-## Orientation & units
-
-ZBrush OBJ export is Y-up-compatible with most pipelines, which matches
-Bozzetto (Three.js / glTF, Y-up). So in Bozzetto's editor the **"Z-up
-conversion" toggle should stay OFF** — but **verify on a real model** and
-flip if your sculpt comes in rotated.
-
 ## Into Bozzetto
 
-Point Bozzetto's **`/create`** editor at your (optionally decimated) folder;
-it builds the project + manifest from the sorted mesh sequence.
+1. Drop the (optionally decimated) sequence into **`/create`** (gallery →
+   **Create → Create timelapse**) or the **`/admin`** editor. Bozzetto builds the
+   project and manifest from the sorted files.
+2. **Orientation:** with the default **Y-up** export, leave **OBJ files are
+   Z-up** unticked. If you exported with **Export Z-up** = `1`, tick it.
+3. **Scale:** Bozzetto works in metres, but ZBrush has no units, so the sequence
+   arrives at the tool's own arbitrary size. In `/admin`, use the **Set scale**
+   banner: on the **last frame**, type the finished model's real height in cm.
+   One factor scales every frame and stands the model on the floor, and it is
+   saved with the project.
+   - Don't move or rescale the whole tool partway through the sculpt. Bozzetto
+     applies one factor to all frames, so the model would visibly jump.
 
 ---
 
