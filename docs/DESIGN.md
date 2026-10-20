@@ -131,9 +131,11 @@ Instead:
     (historically fragile from ZScript — future work).
 - Then load into Bozzetto's `/create` editor.
 
-**Orientation / units:** ZBrush OBJ export is Y-up-compatible in most pipelines,
-matching Bozzetto, so the Bozzetto **Z-up toggle should stay OFF** — *verify on a
-real model*; the exporter can pre-rotate if needed.
+**Orientation / units:** The exporter writes **Y-up** (Bozzetto's default) or
+**Z-up** via the **Export Z-up** control (ZBrush's `eSwitchYZ`), and Bozzetto has
+a matching **Z-up import option**. Y-up is confirmed correct on a real model.
+Bozzetto now works in **metres**; an OBJ carries no units, so import shows a
+**Set scale** prompt (enter the model's real height in cm) — no exporter change.
 
 ---
 
@@ -197,7 +199,9 @@ revisit history export later.
 3. **History caps / persistence** — document Max Undo + "save undo history".
 4. **Exact ZScript commands** for export and subdivision set — confirm vs. the
    2022 Command Reference.
-5. **Orientation** — verify ZBrush→Bozzetto axis on a real model.
+5. **Orientation** — RESOLVED: Y-up confirmed on a real model; the **Export Z-up**
+   control (`eSwitchYZ`) also supports Bozzetto's Z-up import (Z-up winding still
+   to verify on hardware).
 6. **Filename convention** — confirm prefix/padding (default `sculpt_0001.obj`).
 
 ---

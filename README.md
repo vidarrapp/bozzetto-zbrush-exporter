@@ -103,12 +103,13 @@ bozzetto-zbrush-exporter/
   sculpt, or as a fallback if undo stepping is constrained.
 - **New Sequence (Reset)** sets the frame counter back to `1`.
 
-### Export settings & normals
-Before each export the plugin automatically sets **Tri** on and **Qud / Txr /
-Mrg** off (triangulated, no UVs) — so **no `.mtl` files are written**.
-Normal-direction options are left as you set them in
-**Preferences ▸ ImportExport ▸ Export**: if frames look inside-out in Bozzetto,
-toggle **eFlipNormals**, and check that **eFlipMapVert** / **eSwitchYZ** are off.
+### Export settings & orientation
+Before each export the plugin sets **Tri** on and **Qud / Txr / Mrg** off
+(triangulated, no UVs → **no `.mtl` files**), and sets the up-axis from the
+**Export Z-up** control: `0` = **Y-up** (Bozzetto's default, confirmed correct),
+`1` = **Z-up** — then enable Bozzetto's **Z-up** option when importing. Other
+axis flips are forced off. If a Z-up export comes in inside-out, tell me and
+I'll flip normals for that axis.
 
 ---
 
