@@ -68,6 +68,7 @@
 [VarDef, bozzSwVal, 0]
 [VarDef, bozzP1, ""]
 [VarDef, bozzP2, ""]
+[VarDef, bozzZUp, 0]
 
 //--------------------------------------------------------------
 //  Persistent state in memblocks (survive button presses).
@@ -108,14 +109,23 @@
 //    Txr off -> no UVs -> no .mtl file written
 //    Mrg off -> don't merge UV coords
 //    Qud off / Tri on -> triangulated (Bozzetto/three.js want tris)
-//  Normal-flip options (eFlipNormals, eFlipMapVert, eSwitchYZ ...)
-//  are left as you set them in Preferences>ImportExport>Export.
+//  Orientation is deterministic from the "Export Z-up" control:
+//    eSwitchYZ off = Y-up (Bozzetto default), on = Z-up (then turn
+//    ON Bozzetto's Z-up option when importing). Other axis/normal
+//    flips are forced off -- the confirmed-good Y-up combo.
 //--------------------------------------------------------------
 [RoutineDef, bozzSetExportPrefs,
 	[VarSet, bozzSwName, "Txr"] [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
 	[VarSet, bozzSwName, "Mrg"] [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
 	[VarSet, bozzSwName, "Qud"] [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
 	[VarSet, bozzSwName, "Tri"] [VarSet, bozzSwVal, 1] [RoutineCall, bozzSetSwitch]
+	// orientation: Y-up (0) or Z-up (1) via the Y<->Z swap
+	[VarSet, bozzZUp, [IGet, "ZPlugin:Bozzetto Exporter:Export Z-up"]]
+	[VarSet, bozzSwName, "eSwitchYZ"]    [VarSet, bozzSwVal, bozzZUp] [RoutineCall, bozzSetSwitch]  //VERIFY Z-up winding on import
+	[VarSet, bozzSwName, "eFlipX"]       [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
+	[VarSet, bozzSwName, "eFlipY"]       [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
+	[VarSet, bozzSwName, "eFlipZ"]       [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
+	[VarSet, bozzSwName, "eFlipNormals"] [VarSet, bozzSwVal, 0] [RoutineCall, bozzSetSwitch]
 ]
 
 //--------------------------------------------------------------
@@ -299,6 +309,9 @@
 
 [ISlider, "ZPlugin:Bozzetto Exporter:Export Subdiv Level", 0, 1, 0, 8,
 	"Subdivision level to export (0 = keep the current level). Lower levels = smaller files."]
+
+[ISlider, "ZPlugin:Bozzetto Exporter:Export Z-up", 0, 1, 0, 1,
+	"Up axis: 0 = Y-up (Bozzetto's default), 1 = Z-up. For 1, turn ON Bozzetto's Z-up option when importing."]
 
 [ISlider, "ZPlugin:Bozzetto Exporter:Filename Padding", 4, 1, 1, 8,
 	"Zero-padding width for the frame number (4 -> 0001)."]

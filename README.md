@@ -54,7 +54,7 @@ bozzetto-zbrush-exporter/
 │  └─ bozzetto_decimate_dm.txt  optional in-ZBrush batch decimation
 ├─ scripts/
 │  └─ decimate_sequence.py      optional PyMeshLab batch decimation (CLI)
-├─ build/                       compiled .zsc goes here (optional)
+├─ build/                       local build output (.zsc is git-ignored)
 └─ examples/
    └─ sample-sequence/          sample frames (placeholder)
 ```
@@ -62,6 +62,9 @@ bozzetto-zbrush-exporter/
 ---
 
 ## Install
+
+No prebuilt `.zsc` is shipped (compiled ZScript is git-ignored) — you build it
+from the source in one step:
 
 1. **Load it:** in ZBrush open the **ZScript** palette → **Load**, and choose
    `src/bozzetto_exporter.txt`. Loading *is* the compile — ZBrush runs the
@@ -103,12 +106,13 @@ bozzetto-zbrush-exporter/
   sculpt, or as a fallback if undo stepping is constrained.
 - **New Sequence (Reset)** sets the frame counter back to `1`.
 
-### Export settings & normals
-Before each export the plugin automatically sets **Tri** on and **Qud / Txr /
-Mrg** off (triangulated, no UVs) — so **no `.mtl` files are written**.
-Normal-direction options are left as you set them in
-**Preferences ▸ ImportExport ▸ Export**: if frames look inside-out in Bozzetto,
-toggle **eFlipNormals**, and check that **eFlipMapVert** / **eSwitchYZ** are off.
+### Export settings & orientation
+Before each export the plugin sets **Tri** on and **Qud / Txr / Mrg** off
+(triangulated, no UVs → **no `.mtl` files**), and sets the up-axis from the
+**Export Z-up** control: `0` = **Y-up** (Bozzetto's default, confirmed correct),
+`1` = **Z-up** — then enable Bozzetto's **Z-up** option when importing. Other
+axis flips are forced off. If a Z-up export comes in inside-out, tell me and
+I'll flip normals for that axis.
 
 ---
 
@@ -139,17 +143,20 @@ on-hardware tuning; the PyMeshLab route is the safe default.
 
 ---
 
-## Orientation & units
-
-ZBrush OBJ export is Y-up-compatible with most pipelines, which matches
-Bozzetto (Three.js / glTF, Y-up). So in Bozzetto's editor the **"Z-up
-conversion" toggle should stay OFF** — but **verify on a real model** and
-flip if your sculpt comes in rotated.
-
 ## Into Bozzetto
 
-Point Bozzetto's **`/create`** editor at your (optionally decimated) folder;
-it builds the project + manifest from the sorted mesh sequence.
+1. Drop the (optionally decimated) sequence into **`/create`** (gallery →
+   **Create → Create timelapse**) or the **`/admin`** editor. Bozzetto builds the
+   project and manifest from the sorted files.
+2. **Orientation:** with the default **Y-up** export, leave **OBJ files are
+   Z-up** unticked. If you exported with **Export Z-up** = `1`, tick it.
+3. **Scale:** Bozzetto works in metres, but ZBrush has no units, so the sequence
+   arrives at the tool's own arbitrary size. In `/admin`, use the **Set scale**
+   banner: on the **last frame**, type the finished model's real height in cm.
+   One factor scales every frame and stands the model on the floor, and it is
+   saved with the project.
+   - Don't move or rescale the whole tool partway through the sculpt. Bozzetto
+     applies one factor to all frames, so the model would visibly jump.
 
 ---
 
