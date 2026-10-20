@@ -10,3 +10,6 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Compiled ZScript -- built locally by loading the .txt in ZBrush
+*.zsc

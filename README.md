@@ -54,7 +54,7 @@ bozzetto-zbrush-exporter/
 │  └─ bozzetto_decimate_dm.txt  optional in-ZBrush batch decimation
 ├─ scripts/
 │  └─ decimate_sequence.py      optional PyMeshLab batch decimation (CLI)
-├─ build/                       compiled .zsc goes here (optional)
+├─ build/                       local build output (.zsc is git-ignored)
 └─ examples/
    └─ sample-sequence/          sample frames (placeholder)
 ```
@@ -62,6 +62,9 @@ bozzetto-zbrush-exporter/
 ---
 
 ## Install
+
+No prebuilt `.zsc` is shipped (compiled ZScript is git-ignored) — you build it
+from the source in one step:
 
 1. **Load it:** in ZBrush open the **ZScript** palette → **Load**, and choose
    `src/bozzetto_exporter.txt`. Loading *is* the compile — ZBrush runs the
